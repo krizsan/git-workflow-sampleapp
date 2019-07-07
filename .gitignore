@@ -29,3 +29,7 @@ build/
 
 ### VS Code ###
 .vscode/
+
+# To avoid Maven checking in the entire local repository when pushing
+# changes to the repository.
+.m2/

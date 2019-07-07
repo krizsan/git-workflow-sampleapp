@@ -1,0 +1,122 @@
+image: maven:3.6.1-jdk-11
+
+variables:
+  MAVEN_OPTS: "-Dhttps.protocols=TLSv1.2 -Dmaven.repo.local=.m2/repository -Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=WARN -Dorg.slf4j.simpleLogger.showDateTime=true -Djava.awt.headless=true"
+  MAVEN_CLI_OPTS: "--batch-mode --errors --fail-at-end --show-version"
+
+# Cache the Maven repository so that each job does not have to download it.
+cache:
+  key: mavenrepo
+  paths:
+    - ./.m2/repository/
+
+stages:
+  - build
+  - release
+  - docker
+
+# Run tests.
+test:
+  stage: build
+  script:
+    - echo "disabled" # 'mvn $MAVEN_CLI_OPTS install'
+
+# Checkstyle source code standard review.
+checkstyle:
+  stage: build
+  script:
+    - echo "disabled" # 'mvn $MAVEN_CLI_OPTS checkstyle:check'
+
+# PMD code quality analysis.
+pmd:
+  stage: build
+  script:
+    - echo "disabled" # 'mvn $MAVEN_CLI_OPTS pmd:check'
+
+# SpotBugs code quality analysis.
+spotbugs:
+  stage: build
+  script:
+    - echo "disabled" # 'mvn $MAVEN_CLI_OPTS spotbugs:check'
+
+# Test code coverage analysis.
+code-coverage:
+  stage: build
+  # Change from test to install to get proper coverage checking.
+  script:
+    - echo "disabled" # 'mvn $MAVEN_CLI_OPTS -Pcodecoverage install'
+
+# Supplies the option to perform Maven releases from the master branch.
+# Releases need to be triggered manually in the GitLab CI/CD pipeline.
+master-release:
+  stage: release
+  script:
+    - env
+    - git config --global user.email "gitlab@ivankrizsan.se"
+    - git config --global user.name "GitLab CI/CD"
+    # Fix the repository URL, replacing any host, localhost in my case, with gitlab.
+    # Note that gitlab is the name of the container in which GitLab is running.
+    # Insert GitLab access token into URL so release tag and next snapshot version
+    # can be pushed to the repository.
+    -  export NEW_REPO_URL=$(echo $CI_REPOSITORY_URL | sed 's/@[^/]*/@gitlab/' | sed 's/\(http[s]*\):\/\/[^@]*/\1:\/\/oauth2:'$GITLAB_CICD_TOKEN'/')
+    # Debug git interaction.
+    - 'export GIT_TRACING=2'
+    - 'export GIT_CURL_VERBOSE=1'
+    # Remove the SNAPSHOT from the project's version thus creating the release version number.
+    - 'mvn $MAVEN_CLI_OPTS versions:set -DremoveSnapshot -DprocessAllModules=true'
+    - 'export RELEASE_VERSION=$(mvn --batch-mode --no-transfer-progress --non-recursive help:evaluate -Dexpression=project.version | grep -v "\[.*")'
+    - 'echo "Release version: $RELEASE_VERSION"'
+    # Push the release version to a new tag.
+    # This relies on the .m2 directory containing the Maven repository
+    # in the build directory being included in the .gitignore file in the
+    # project, since we do not want to commit the contents of the Maven repository.
+    - 'git add $CI_PROJECT_DIR'
+    - 'git commit -m "Create release version"'
+    - 'git tag -a $RELEASE_VERSION -m "Create release version tag"'
+    - 'git remote set-url --push origin $NEW_REPO_URL'
+    - 'git push origin $RELEASE_VERSION'
+    # Update master branch to next snapshot version.
+    # If automatic building of the master branch is desired, remove
+    # the "[ci skip]" part in the commit message.
+    - 'git checkout master'
+    - 'git reset --hard "origin/master"'
+    - 'git remote set-url --push origin $NEW_REPO_URL'
+    - 'mvn $MAVEN_CLI_OPTS versions:set -DnextSnapshot=true -DprocessAllModules=true'
+    - 'git add $CI_PROJECT_DIR'
+    - 'git commit -m "Create next snapshot version [ci skip]"'
+    - 'git push origin master'
+  when: manual
+  only:
+    - master
+
+# Builds release version tags as to create release artifact(s).
+# Artifacts are retained 2 weeks if the Keep button in the web GUI
+# is not clicked, in which case they will be retained forever.
+release-build:
+  stage: release
+  script:
+    - 'mvn $MAVEN_CLI_OPTS install'
+  only:
+    - /^\d+\.\d+\.\d+$/
+    - tags
+  artifacts:
+    paths:
+      - target/*.jar
+    expire_in: 2 weeks
+
+# Building a Docker image and pushing it to Docker Hub.
+# Action can be manually triggered in the GitLab CI/CD pipeline
+# of release tags.
+dockerimage:
+  stage: docker
+  before_script:
+    # Install a Docker client in the container as to be able to build Docker image(s).
+    - wget https://download.docker.com/linux/static/stable/x86_64/docker-18.09.6.tgz
+    - tar zxvf docker*.tgz
+    - cp docker/docker /usr/local/bin/docker
+
+  script:
+    - mvn -Pdockerimage docker:build
+  only:
+    - /^\d+\.\d+\.\d+$/
+    - tags

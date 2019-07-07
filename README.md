@@ -16,6 +16,5 @@ In the version of the project that has no CI/CD pipeline, these goals need to be
 <li>mvn -Pcicdprofile install
 <br/>Ensure that the minimum amounts of code covered by tests is reached.</li>
 
-
-## Before
-This branch contains the project before the GitLab CI/CD pipeline was added.
+## After
+This branch contains the project after the GitLab CI/CD pipeline was added.
