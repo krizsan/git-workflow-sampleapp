@@ -1,0 +1,270 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>2.1.6.RELEASE</version>
+        <relativePath/> <!-- lookup parent from repository -->
+    </parent>
+    <groupId>se.ivankrizsan.spring</groupId>
+    <artifactId>git-workflow-sampleapp</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+    <name>git-workflow-sampleapp</name>
+
+    <properties>
+        <java.version>11</java.version>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-webflux</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.projectreactor</groupId>
+            <artifactId>reactor-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
+
+    <profiles>
+        <profile>
+            <id>cicdprofile</id>
+            <properties>
+                <javadoc.opts>-Xdoclint:none</javadoc.opts>
+            </properties>
+            <build>
+                <plugins>
+                    <!-- Code coverage. -->
+                    <plugin>
+                        <groupId>org.jacoco</groupId>
+                        <artifactId>jacoco-maven-plugin</artifactId>
+                        <version>0.8.4</version>
+                        <executions>
+                            <execution>
+                                <id>default-prepare-agent</id>
+                                <goals>
+                                    <goal>prepare-agent</goal>
+                                </goals>
+                            </execution>
+                            <execution>
+                                <id>default-report</id>
+                                <goals>
+                                    <goal>report</goal>
+                                </goals>
+                            </execution>
+                            <execution>
+                                <id>default-check</id>
+                                <goals>
+                                    <goal>check</goal>
+                                </goals>
+                                <configuration>
+                                    <rules>
+                                        <rule>
+                                            <element>CLASS</element>
+                                            <excludes>
+                                            </excludes>
+                                            <limits>
+                                                <limit>
+                                                    <counter>LINE</counter>
+                                                    <value>COVEREDRATIO</value>
+                                                    <minimum>70%</minimum>
+                                                </limit>
+                                            </limits>
+                                        </rule>
+                                        <rule>
+                                            <element>BUNDLE</element>
+                                            <excludes>
+                                            </excludes>
+                                            <limits>
+                                                <limit>
+                                                    <counter>CLASS</counter>
+                                                    <value>COVEREDRATIO</value>
+                                                    <minimum>90%</minimum>
+                                                </limit>
+                                            </limits>
+                                        </rule>
+                                    </rules>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <!-- Code quality: PMD -->
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-pmd-plugin</artifactId>
+                        <version>3.12.0</version>
+                        <configuration>
+                            <targetJdk>${java.version}</targetJdk>
+                            <includeTests>true</includeTests>
+                            <failOnViolation>true</failOnViolation>
+                            <printFailingErrors>true</printFailingErrors>
+                        </configuration>
+                    </plugin>
+                    <!-- Code quality: Spotbugs -->
+                    <plugin>
+                        <groupId>com.github.spotbugs</groupId>
+                        <artifactId>spotbugs-maven-plugin</artifactId>
+                        <version>3.1.12</version>
+                        <configuration combine.self="append">
+                            <includeTests>true</includeTests>
+                            <effort>Max</effort>
+                            <threshold>Low</threshold>
+                            <failOnError>true</failOnError>
+                        </configuration>
+                    </plugin>
+                    <!-- Source code style checking. -->
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-checkstyle-plugin</artifactId>
+                        <version>3.1.0</version>
+                        <configuration>
+                            <configLocation>ivans_checkstyle_config.xml</configLocation>
+                            <includeTestSourceDirectory>true</includeTestSourceDirectory>
+                            <excludes>module-info.java</excludes>
+                            <failOnViolation>true</failOnViolation>
+                            <failsOnError>true</failsOnError>
+                            <consoleOutput>true</consoleOutput>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+
+        <!--
+            Builds a Docker image containing the Spring Boot application.
+            Start a container with the SYS_TIME capability, in order for
+            time synchronization in the container to work properly.
+        -->
+        <profile>
+            <id>dockerimage</id>
+            <properties>
+                <!-- Name of Docker image that will be built. -->
+                <docker.image.name>hello-webapp</docker.image.name>
+                <!-- Directory that holds Docker file and static content necessary to build the Docker image. -->
+                <docker.image.src.root>src/main/docker</docker.image.src.root>
+                <!--
+                    Directory to which the Docker image artifacts and the Docker file
+                    will be copied to and which will serve as the root directory when building
+                    the Docker image.
+                -->
+                <docker.build.directory>${project.build.directory}/dockerimgbuild</docker.build.directory>
+                <!-- URL to the Docker host used to build the Docker image. -->
+                <docker.host.url>unix://var/run/docker.sock</docker.host.url>
+                <!-- Name of the Dockerfile the Docker image will be built from. -->
+                <docker.file.name>Dockerfile</docker.file.name>
+            </properties>
+            <build>
+                <plugins>
+                    <plugin>
+                        <artifactId>maven-resources-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>copy-resources</id>
+                                <phase>package</phase>
+                                <goals>
+                                    <goal>copy-resources</goal>
+                                </goals>
+                                <configuration>
+                                    <outputDirectory>${docker.build.directory}</outputDirectory>
+                                    <resources>
+                                        <resource>
+                                            <directory>${docker.image.src.root}</directory>
+                                            <filtering>false</filtering>
+                                        </resource>
+                                    </resources>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+
+                    <!--
+                        Copy the JAR file containing the Spring Boot application to the
+                        application/lib directory.
+                    -->
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-dependency-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>copy</id>
+                                <phase>package</phase>
+                                <goals>
+                                    <goal>copy</goal>
+                                </goals>
+                                <configuration>
+                                    <artifactItems>
+                                        <artifactItem>
+                                            <!--
+                                                Specify groupId, artifactId, version and type for the artifact
+                                                you want to package in the Docker image.
+                                                In the case of a Spring Boot application these are the same as
+                                                the project group id, artifact id and version.
+                                            -->
+                                            <groupId>${project.groupId}</groupId>
+                                            <artifactId>${project.artifactId}</artifactId>
+                                            <version>${project.version}</version>
+                                            <type>jar</type>
+                                            <overWrite>true</overWrite>
+                                            <outputDirectory>${docker.build.directory}/application/lib</outputDirectory>
+                                            <!--
+                                                Specify the destination name as to have one and the same
+                                                name to refer to in the Dockerfile.
+                                            -->
+                                            <destFileName>hello-webapp.jar</destFileName>
+                                        </artifactItem>
+                                        <!--
+                                            Add additional artifacts to be packaged in the Docker image
+                                            here.
+                                        -->
+                                    </artifactItems>
+                                    <outputDirectory>${docker.build.directory}</outputDirectory>
+                                    <overWriteReleases>true</overWriteReleases>
+                                    <overWriteSnapshots>true</overWriteSnapshots>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <!-- Build the Docker image. -->
+                    <plugin>
+                        <groupId>io.fabric8</groupId>
+                        <artifactId>docker-maven-plugin</artifactId>
+                        <version>0.19.0</version>
+                        <configuration>
+                            <dockerHost>${docker.host.url}</dockerHost>
+                            <images>
+                                <image>
+                                    <name>${docker.image.name}</name>
+                                    <build>
+                                        <tags>
+                                            <tag>${project.version}</tag>
+                                            <tag>latest</tag>
+                                        </tags>
+                                        <dockerFile>${docker.build.directory}/${docker.file.name}</dockerFile>
+                                    </build>
+                                </image>
+                            </images>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
+</project>

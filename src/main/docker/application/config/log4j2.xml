@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!--
+    Log configuration used when application running in a container.
+-->
+<Configuration>
+    <Properties>
+        <property name="LOGS" value="application/logs"/>
+    </Properties>
+    <Appenders>
+        <Console name="CONSOLE" target="SYSTEM_OUT">
+            <PatternLayout pattern="%d %-5p %-30C - %m%n"/>
+        </Console>
+
+        <RollingFile name="ROLLINGFILE" fileName="${LOGS}/hello-webapp.log"
+            filePattern="${LOGS}/hello-webapp-%i.log" ignoreExceptions="false">
+            <PatternLayout>
+                <Pattern>%d %-5p %-30C - %m%n</Pattern>
+            </PatternLayout>
+            <Policies>
+                <SizeBasedTriggeringPolicy size="1000 KB"/>
+            </Policies>
+            <DefaultRolloverStrategy min="1" max="10"/>
+        </RollingFile>
+    </Appenders>
+
+    <Loggers>
+        <Logger name="se.ivankrizsan.spring" level="INFO">
+            <AppenderRef ref="CONSOLE"/>
+        </Logger>
+        <Root level="INFO">
+            <AppenderRef ref="CONSOLE"/>
+        </Root>
+    </Loggers>
+
+</Configuration>
