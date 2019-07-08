@@ -19,32 +19,32 @@ stages:
 test:
   stage: build
   script:
-    - echo "disabled" # 'mvn $MAVEN_CLI_OPTS install'
+    - 'mvn $MAVEN_CLI_OPTS install'
 
 # Checkstyle source code standard review.
 checkstyle:
   stage: build
   script:
-    - echo "disabled" # 'mvn $MAVEN_CLI_OPTS checkstyle:check'
+    - 'mvn $MAVEN_CLI_OPTS checkstyle:check'
 
 # PMD code quality analysis.
 pmd:
   stage: build
   script:
-    - echo "disabled" # 'mvn $MAVEN_CLI_OPTS pmd:check'
+    - 'mvn $MAVEN_CLI_OPTS pmd:check'
 
 # SpotBugs code quality analysis.
 spotbugs:
   stage: build
   script:
-    - echo "disabled" # 'mvn $MAVEN_CLI_OPTS spotbugs:check'
+    - 'mvn $MAVEN_CLI_OPTS spotbugs:check'
 
 # Test code coverage analysis.
 code-coverage:
   stage: build
   # Change from test to install to get proper coverage checking.
   script:
-    - echo "disabled" # 'mvn $MAVEN_CLI_OPTS -Pcodecoverage install'
+    - 'mvn $MAVEN_CLI_OPTS -Pcodecoverage install'
 
 # Supplies the option to perform Maven releases from the master branch.
 # Releases need to be triggered manually in the GitLab CI/CD pipeline.
@@ -58,7 +58,7 @@ master-release:
     # Note that gitlab is the name of the container in which GitLab is running.
     # Insert GitLab access token into URL so release tag and next snapshot version
     # can be pushed to the repository.
-    -  export NEW_REPO_URL=$(echo $CI_REPOSITORY_URL | sed 's/@[^/]*/@gitlab/' | sed 's/\(http[s]*\):\/\/[^@]*/\1:\/\/oauth2:'$GITLAB_CICD_TOKEN'/')
+    - export NEW_REPO_URL=$(echo $CI_REPOSITORY_URL | sed 's/@[^/]*/@gitlab/' | sed 's/\(http[s]*\):\/\/[^@]*/\1:\/\/oauth2:'$GITLAB_CICD_TOKEN'/')
     # Debug git interaction.
     - 'export GIT_TRACING=2'
     - 'export GIT_CURL_VERBOSE=1'
