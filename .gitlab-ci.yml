@@ -149,7 +149,6 @@ scan-docker-image:
     # Remove the Clair container.
     - if docker stop $CLAIR_CONTAINER_NAME ; then echo "Clair container stopped"; else echo "There is no Clair container to stop"; fi
     - if docker rm $CLAIR_CONTAINER_NAME ; then echo "Clair container removed"; else echo "There is no Clair container to remove"; fi
-
   only:
     - /^\d+\.\d+\.\d+$/
     - tags
