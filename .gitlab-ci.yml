@@ -2,7 +2,8 @@ image: maven:3.6.1-jdk-11
 
 variables:
   MAVEN_OPTS: "-Dhttps.protocols=TLSv1.2 -Dmaven.repo.local=.m2/repository -Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=WARN -Dorg.slf4j.simpleLogger.showDateTime=true -Djava.awt.headless=true"
-  MAVEN_CLI_OPTS: "--batch-mode --errors --fail-at-end --show-version"
+  MAVEN_CLI_OPTS: "--batch-mode --errors --fail-at-end –show-version"
+  DOCKER_IMAGE_TO_SCAN: hello-webapp:latest
 
 # Cache the Maven repository so that each job does not have to download it.
 cache:
@@ -13,7 +14,9 @@ cache:
 stages:
   - build
   - release
-  - docker
+  - create_docker_image
+  - scan_docker_image
+  - push_docker_image
 
 # Run tests.
 test:
@@ -49,8 +52,8 @@ code-coverage:
 # Releases need to be triggered manually in the GitLab CI/CD pipeline.
 master-release:
   stage: release
+  when: manual
   script:
-    - env
     - git config --global user.email "gitlab@ivankrizsan.se"
     - git config --global user.name "GitLab CI/CD"
     # Fix the repository URL, replacing any host, localhost in my case, with gitlab.
@@ -84,7 +87,6 @@ master-release:
     - 'git add $CI_PROJECT_DIR'
     - 'git commit -m "Create next snapshot version [ci skip]"'
     - 'git push origin master'
-  when: manual
   only:
     - master
 
@@ -103,19 +105,63 @@ release-build:
       - target/*.jar
     expire_in: 2 weeks
 
-# Building a Docker image and pushing it to Docker Hub.
+# Build a Docker image.
 # Action can be manually triggered in the GitLab CI/CD pipeline
 # of release tags.
-dockerimage:
-  stage: docker
+create-docker-image:
+  stage: create_docker_image
+  when: manual
   before_script:
     # Install a Docker client in the container as to be able to build Docker image(s).
-    - wget https://download.docker.com/linux/static/stable/x86_64/docker-18.09.6.tgz
+    - wget -q https://download.docker.com/linux/static/stable/x86_64/docker-18.09.6.tgz
     - tar zxvf docker*.tgz
     - cp docker/docker /usr/local/bin/docker
-
   script:
     - mvn -Pdockerimage docker:build
+  only:
+    - /^\d+\.\d+\.\d+$/
+    - tags
+
+# Scan the (local) Docker image using Clair.
+scan-docker-image:
+  image: docker:stable
+  stage: scan_docker_image
+  when: manual
+  variables:
+    DOCKER_HOST: unix:///var/run/docker.sock
+    CLAIR_DB_CONTAINER_NAME: clairdb_$CI_CONCURRENT_PROJECT_ID
+    CLAIR_CONTAINER_NAME: clair_$CI_CONCURRENT_PROJECT_ID
+  before_script:
+    # Start an instance of Postgresql with a pre-populated Clair DB.
+    - docker run -d --name $CLAIR_DB_CONTAINER_NAME --network=gitlabnetwork arminc/clair-db:latest
+    # Start the Clair server.
+    - docker run -p 6060:6060 --link $CLAIR_DB_CONTAINER_NAME:postgres --network=gitlabnetwork -d --name $CLAIR_CONTAINER_NAME --restart on-failure arminc/clair-local-scan:v2.0.6
+    # Download Clair scanner client.
+    - wget -nv -qO clair-scanner https://github.com/arminc/clair-scanner/releases/download/v8/clair-scanner_linux_amd64
+    - chmod +x clair-scanner
+  script:
+    # Scan the Docker image built in the previous step using Clair.
+    - ./clair-scanner --ip="$(hostname -i)" -c "http://$CLAIR_CONTAINER_NAME:6060" $DOCKER_IMAGE_TO_SCAN
+  after_script:
+    # Stop and remove the Clair DB container.
+    - if docker stop $CLAIR_DB_CONTAINER_NAME ; then echo "Clair DB container stopped"; else echo "There is no Clair DB container to stop"; fi
+    - if docker rm $CLAIR_DB_CONTAINER_NAME ; then echo "Clair DB container removed"; else echo "There is no Clair DB container to remove"; fi
+    # Remove the Clair container.
+    - if docker stop $CLAIR_CONTAINER_NAME ; then echo "Clair container stopped"; else echo "There is no Clair container to stop"; fi
+    - if docker rm $CLAIR_CONTAINER_NAME ; then echo "Clair container removed"; else echo "There is no Clair container to remove"; fi
+
+  only:
+    - /^\d+\.\d+\.\d+$/
+    - tags
+
+# Push the Docker image to a repository.
+# In this example the repository is DockerHub.
+push-docker-image:
+  stage: push_docker_image
+  when: manual
+  script:
+    - docker login --username ivan --password secret
+    - docker push $DOCKER_IMAGE_TO_SCAN
   only:
     - /^\d+\.\d+\.\d+$/
     - tags
