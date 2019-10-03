@@ -18,3 +18,7 @@ In the version of the project that has no CI/CD pipeline, these goals need to be
 
 ## After
 This branch contains the project after the GitLab CI/CD pipeline was added.
+
+# Article
+Link to article in which this project is used:<br/>
+https://www.ivankrizsan.se/2019/09/28/gitlab-ci-cd-pipeline-for-maven-based-applications/
